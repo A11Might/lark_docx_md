@@ -15,21 +15,27 @@ import (
 )
 
 const (
-	Page     = 1
-	Text     = 2
-	Heading1 = 3
-	Heading2 = 4
-	Heading3 = 5
-	Heading4 = 6
-	Heading5 = 7
-	Heading6 = 8
-	Heading7 = 9
-	Heading8 = 10
-	Heading9 = 11
-	Bullet   = 12
-	Ordered  = 13
-	Code     = 14
-	Image    = 27
+	Page           = 1
+	Text           = 2
+	Heading1       = 3
+	Heading2       = 4
+	Heading3       = 5
+	Heading4       = 6
+	Heading5       = 7
+	Heading6       = 8
+	Heading7       = 9
+	Heading8       = 10
+	Heading9       = 11
+	Bullet         = 12
+	Ordered        = 13
+	Code           = 14
+	Quote          = 15
+	Todo           = 17
+	Divider        = 22
+	Image          = 27
+	Table          = 31
+	TableCell      = 32
+	QuoteContainer = 34
 )
 
 func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (string, error) {
@@ -43,9 +49,9 @@ func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (
 
 		buf = new(strings.Builder)
 	)
+	// todo 全部拿出来后，分组处理（eg. 引用块、表格）
 	for ; hasMore && err == nil; hasMore, block, err = iterator.Next() {
 		buf.WriteString(DocxBlockMarkdown(ctx, client, block))
-		buf.WriteString("\n")
 	}
 
 	if err != nil {
@@ -55,37 +61,53 @@ func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (
 	return buf.String(), nil
 }
 
-func DocxBlockMarkdown(ctx context.Context, client *lark.Client, block *larkdocx.Block) string {
+var QuoteContainerBlockIdMap = make(map[string]struct{})
+
+func DocxBlockMarkdown(ctx context.Context, client *lark.Client, block *larkdocx.Block) (md string) {
 	if block == nil {
 		return ""
 	}
 
 	switch *block.BlockType {
 	case Page:
-		return BlockPageMarkdown(ctx, block)
+		md = BlockPageMarkdown(ctx, block)
 	case Text:
-		return BlockTextMarkdown(ctx, block)
+		md = BlockTextMarkdown(ctx, block)
 	case Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Heading7, Heading8, Heading9:
-		return BlockHeadingMarkdown(ctx, block)
+		md = BlockHeadingMarkdown(ctx, block)
 	case Bullet:
-		return BlockBulletMarkdown(ctx, block)
+		md = BlockBulletMarkdown(ctx, block)
 	case Ordered:
-		return BlockOrderedMarkdown(ctx, block)
+		md = BlockOrderedMarkdown(ctx, block)
 	case Code:
-		return BlockCodeMarkdown(ctx, block)
+		md = BlockCodeMarkdown(ctx, block)
+	case Quote:
+		md = BlockQuoteMarkdown(ctx, block)
+	case Todo:
+		md = BlockTodoMarkdown(ctx, block)
+	case Divider:
+		md = BlockDividerMarkdown(ctx)
 	case Image:
-		return BlockImageMarkdown(ctx, client, block)
+		md = BlockImageMarkdown(ctx, client, block)
+	case QuoteContainer:
+		QuoteContainerBlockIdMap[*block.BlockId] = struct{}{}
+		return ""
 	default:
-		return fmt.Sprintf("not support block type:%d", *block.BlockType)
+		md = fmt.Sprintf("not support block type:%d", *block.BlockType)
 	}
+
+	return md + "\n"
 }
 
 func BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return fmt.Sprintf("# %s", TextMarkdown(ctx, block.Page))
+	return "# " + TextMarkdown(ctx, block.Page)
 }
 
-// BlockTextMarkdown 处理文本 Block
 func BlockTextMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	if _, ok := QuoteContainerBlockIdMap[*block.ParentId]; ok {
+		// 特殊处理引用容器中的元素
+		return "> " + TextMarkdown(ctx, block.Text)
+	}
 	return TextMarkdown(ctx, block.Text)
 }
 
@@ -112,29 +134,186 @@ func BlockHeadingMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	}
 
 	// block type: [3, 11] -> heading: [1, 9]
-	return fmt.Sprintf("%s %s", strings.Repeat("#", *block.BlockType-2), TextMarkdown(ctx, heading))
+	return strings.Repeat("#", *block.BlockType-2) + " " + TextMarkdown(ctx, heading)
 }
 
 func BlockBulletMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return fmt.Sprintf("- %s", TextMarkdown(ctx, block.Bullet))
+	return "- " + TextMarkdown(ctx, block.Bullet)
 }
 
 func BlockOrderedMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return fmt.Sprintf("1 %s", TextMarkdown(ctx, block.Bullet))
+	return "1 " + TextMarkdown(ctx, block.Bullet)
 }
 
 const (
-	Go   = 22
-	JSON = 28
+	PlainText = iota + 1
+	ABAP
+	Ada
+	Apache
+	Apex
+	AssemblyLanguage
+	Bash
+	CSharp
+	Cpp
+	C
+	COBOL
+	CSS
+	CoffeeScript
+	D
+	Dart
+	Delphi
+	Django
+	Dockerfile
+	Erlang
+	Fortran
+	FoxPro
+	Go
+	Groovy
+	HTML
+	HTMLBars
+	HTTP
+	Haskell
+	JSON
+	Java
+	JavaScript
+	Julia
+	Kotlin
+	LateX
+	Lisp
+	Logo
+	Lua
+	MATLAB
+	Makefile
+	Markdown
+	Nginx
+	ObjectiveC
+	OpenEdgeABL
+	PHP
+	Perl
+	PostScript
+	PowerShell
+	Prolog
+	ProtoBuf
+	Python
+	R
+	RPG
+	Ruby
+	Rust
+	SAS
+	SCSS
+	SQL
+	Scala
+	Scheme
+	Scratch
+	Shell
+	Swift
+	Thrift
+	TypeScript
+	VBScript
+	VisualBasic
+	XML
+	YAML
+	CMake
+	Diff
+	Gherkin
+	GraphQL
+	OpenGLShadingLanguage
+	Properties
+	Solidity
+	TOML
 )
 
 var lmap = map[int]string{
-	Go:   "go",
-	JSON: "json",
+	PlainText:             "plaintext",
+	ABAP:                  "abap",
+	Ada:                   "ada",
+	Apache:                "apache",
+	Apex:                  "apex",
+	AssemblyLanguage:      "assemblylanguage",
+	Bash:                  "bash",
+	CSharp:                "csharp",
+	Cpp:                   "cpp",
+	C:                     "c",
+	COBOL:                 "cobol",
+	CSS:                   "css",
+	CoffeeScript:          "coffeescript",
+	D:                     "d",
+	Dart:                  "dart",
+	Delphi:                "delphi",
+	Django:                "django",
+	Dockerfile:            "dockerfile",
+	Erlang:                "erlang",
+	Fortran:               "fortran",
+	FoxPro:                "foxpro",
+	Go:                    "go",
+	Groovy:                "groovy",
+	HTML:                  "html",
+	HTMLBars:              "htmlbars",
+	HTTP:                  "http",
+	Haskell:               "haskell",
+	JSON:                  "json",
+	Java:                  "java",
+	JavaScript:            "javascript",
+	Julia:                 "julia",
+	Kotlin:                "kotlin",
+	LateX:                 "latex",
+	Lisp:                  "lisp",
+	Logo:                  "logo",
+	Lua:                   "lua",
+	MATLAB:                "matlab",
+	Makefile:              "makefile",
+	Markdown:              "markdown",
+	Nginx:                 "nginx",
+	ObjectiveC:            "objectivec",
+	OpenEdgeABL:           "openedgeabl",
+	PHP:                   "php",
+	Perl:                  "perl",
+	PostScript:            "postscript",
+	PowerShell:            "powershell",
+	Prolog:                "prolog",
+	ProtoBuf:              "protobuf",
+	Python:                "python",
+	R:                     "r",
+	RPG:                   "rpg",
+	Ruby:                  "ruby",
+	Rust:                  "rust",
+	SAS:                   "sas",
+	SCSS:                  "scss",
+	SQL:                   "sql",
+	Scala:                 "scala",
+	Scheme:                "scheme",
+	Scratch:               "scratch",
+	Shell:                 "shell",
+	Swift:                 "swift",
+	Thrift:                "thrift",
+	TypeScript:            "typescript",
+	VBScript:              "vbscript",
+	VisualBasic:           "visualbasic",
+	XML:                   "xml",
+	YAML:                  "yaml",
+	CMake:                 "cmake",
+	Diff:                  "diff",
+	Gherkin:               "gherkin",
+	GraphQL:               "graphql",
+	OpenGLShadingLanguage: "openglshadinglanguage",
+	Properties:            "properties",
+	Solidity:              "solidity",
+	TOML:                  "toml",
 }
 
 func BlockCodeMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	return fmt.Sprintf("```%s\n%s\n```", lmap[*block.Code.Style.Language], TextMarkdown(ctx, block.Code))
+}
+
+func BlockQuoteMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return "> " + TextMarkdown(ctx, block.Code)
+}
+
+func BlockTodoMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	if *block.Todo.Style.Done {
+		return "[x] " + TextMarkdown(ctx, block.Todo)
+	}
+	return "[]" + TextMarkdown(ctx, block.Todo)
 }
 
 func TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
@@ -194,4 +373,8 @@ func BlockImageMarkdown(ctx context.Context, client *lark.Client, block *larkdoc
 
 	_, _ = io.Copy(f, resp.File)
 	return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", filename, *block.Image.Width, *block.Image.Height)
+}
+
+func BlockDividerMarkdown(ctx context.Context) string {
+	return "---"
 }
