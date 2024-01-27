@@ -38,65 +38,41 @@ const (
 	QuoteContainer = 34
 )
 
-func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (string, error) {
-	req := larkdocx.NewListDocumentBlockReqBuilder().DocumentId(documentId).Build()
-	iterator, _ := client.Docx.V1.DocumentBlock.ListByIterator(ctx, req)
-
-	var (
-		hasMore = true
-		block   *larkdocx.Block
-		err     error
-
-		buf = new(strings.Builder)
-	)
-	// todo 全部拿出来后，分组处理（eg. 引用块、表格）
-	for ; hasMore && err == nil; hasMore, block, err = iterator.Next() {
-		buf.WriteString(DocxBlockMarkdown(ctx, client, block))
-	}
-
-	if err != nil {
-		return "", err
-	}
-
-	return buf.String(), nil
-}
-
-var QuoteContainerBlockIdMap = make(map[string]struct{})
-
-func DocxBlockMarkdown(ctx context.Context, client *lark.Client, block *larkdocx.Block) (md string) {
-	if block == nil {
+func DocxBlockMarkdown(ctx context.Context, client *lark.Client, item *ProcessItem) (md string) {
+	if item == nil {
 		return ""
 	}
 
-	switch *block.BlockType {
+	switch *item.BlockType {
 	case Page:
-		md = BlockPageMarkdown(ctx, block)
+		md = BlockPageMarkdown(ctx, item.Normal)
 	case Text:
-		md = BlockTextMarkdown(ctx, block)
+		md = BlockTextMarkdown(ctx, item.Normal)
 	case Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Heading7, Heading8, Heading9:
-		md = BlockHeadingMarkdown(ctx, block)
+		md = BlockHeadingMarkdown(ctx, item.Normal)
 	case Bullet:
-		md = BlockBulletMarkdown(ctx, block)
+		md = BlockBulletMarkdown(ctx, item.Normal)
 	case Ordered:
-		md = BlockOrderedMarkdown(ctx, block)
+		md = BlockOrderedMarkdown(ctx, item.Normal)
 	case Code:
-		md = BlockCodeMarkdown(ctx, block)
+		md = BlockCodeMarkdown(ctx, item.Normal)
 	case Quote:
-		md = BlockQuoteMarkdown(ctx, block)
+		md = BlockQuoteMarkdown(ctx, item.Normal)
 	case Todo:
-		md = BlockTodoMarkdown(ctx, block)
+		md = BlockTodoMarkdown(ctx, item.Normal)
 	case Divider:
 		md = BlockDividerMarkdown(ctx)
 	case Image:
-		md = BlockImageMarkdown(ctx, client, block)
+		md = BlockImageMarkdown(ctx, client, item.Normal)
+	case Table:
+		md = BlockTableMarkdown(ctx, item.Table)
 	case QuoteContainer:
-		QuoteContainerBlockIdMap[*block.BlockId] = struct{}{}
-		return ""
+		md = BlockQuoteContainerMarkdown(ctx, item.QuoteContainer)
 	default:
-		md = fmt.Sprintf("not support block type:%d", *block.BlockType)
+		md = fmt.Sprintf("not support block type:%d", *item.BlockType)
 	}
 
-	return md + "\n"
+	return md + "\n\n"
 }
 
 func BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
@@ -104,10 +80,6 @@ func BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
 }
 
 func BlockTextMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	if _, ok := QuoteContainerBlockIdMap[*block.ParentId]; ok {
-		// 特殊处理引用容器中的元素
-		return "> " + TextMarkdown(ctx, block.Text)
-	}
 	return TextMarkdown(ctx, block.Text)
 }
 
@@ -142,7 +114,7 @@ func BlockBulletMarkdown(ctx context.Context, block *larkdocx.Block) string {
 }
 
 func BlockOrderedMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return "1 " + TextMarkdown(ctx, block.Bullet)
+	return "1. " + TextMarkdown(ctx, block.Ordered)
 }
 
 const (
@@ -353,6 +325,10 @@ func TextAddElementStyle(text string, style *larkdocx.TextElementStyle) string {
 	return text
 }
 
+func BlockDividerMarkdown(ctx context.Context) string {
+	return "---"
+}
+
 func BlockImageMarkdown(ctx context.Context, client *lark.Client, block *larkdocx.Block) string {
 	req := larkdrive.NewDownloadMediaReqBuilder().
 		FileToken(*block.Image.Token).
@@ -375,6 +351,68 @@ func BlockImageMarkdown(ctx context.Context, client *lark.Client, block *larkdoc
 	return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", filename, *block.Image.Width, *block.Image.Height)
 }
 
-func BlockDividerMarkdown(ctx context.Context) string {
-	return "---"
+const (
+	AlignLeft = iota + 1
+	AlignMid
+	AlignRight
+)
+
+func BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
+	buf := new(strings.Builder)
+
+	/**
+	| Tables        | Are           | Cool  |
+	| ------------- |:-------------:| -----:|
+	| col 3 is      | right-aligned | $1600 |
+	| col 2 is      | centered      |   $12 |
+	| zebra stripes | are neat      |    $1 |
+	*/
+	// 处理表头
+	header := new(strings.Builder)
+	header.WriteString("|")
+	buf.WriteString("|")
+	for _, col := range table[0] {
+		switch *col.Text.Style.Align {
+		case AlignLeft:
+			header.WriteString("-|")
+		case AlignMid:
+			header.WriteString(":-:|")
+		case AlignRight:
+			header.WriteString("-:|")
+		default:
+			header.WriteString("-|")
+		}
+		buf.WriteString(TextMarkdown(ctx, col.Text))
+		buf.WriteString("|")
+	}
+	buf.WriteString("\n")
+	buf.WriteString(header.String())
+	buf.WriteString("\n")
+
+	if len(table) > 1 {
+		// 跳过表头
+		table = table[1:]
+	}
+	for _, row := range table {
+		buf.WriteString("|")
+		for _, col := range row {
+			buf.WriteString(TextMarkdown(ctx, col.Text))
+			buf.WriteString("|")
+		}
+		buf.WriteString("\n")
+	}
+
+	return buf.String()
+}
+
+func BlockQuoteContainerMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
+	buf := new(strings.Builder)
+
+	for _, b := range blocks {
+		buf.WriteString("> ")
+		buf.WriteString(TextMarkdown(ctx, b.Text))
+		buf.WriteString("\n>\n")
+	}
+
+	return buf.String()
 }
