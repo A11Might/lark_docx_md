@@ -31,6 +31,7 @@ const (
 	Code           = 14
 	Quote          = 15
 	Todo           = 17
+	Callout        = 19
 	Divider        = 22
 	Image          = 27
 	Table          = 31
@@ -60,6 +61,8 @@ func DocxBlockMarkdown(ctx context.Context, client *lark.Client, item *ProcessIt
 		md = BlockQuoteMarkdown(ctx, item.Normal)
 	case Todo:
 		md = BlockTodoMarkdown(ctx, item.Normal)
+	case Callout:
+		md = BlockCalloutMarkdown(ctx, item.Callout)
 	case Divider:
 		md = BlockDividerMarkdown(ctx)
 	case Image:
@@ -286,6 +289,33 @@ func BlockTodoMarkdown(ctx context.Context, block *larkdocx.Block) string {
 		return "[x] " + TextMarkdown(ctx, block.Todo)
 	}
 	return "[]" + TextMarkdown(ctx, block.Todo)
+}
+
+// todo 待补充映射
+var emojiMap = map[string]string{
+	"unicorn_face": "🦄",
+}
+
+func BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
+	buf := new(strings.Builder)
+
+	emoji := emojiMap[*blocks[0].Callout.EmojiId]
+	if len(blocks) > 1 {
+		blocks = blocks[1:]
+	}
+
+	for i, b := range blocks {
+		buf.WriteString("> ")
+		// 加入高亮块 emoji
+		if i == 0 {
+			buf.WriteString(emoji)
+			buf.WriteString(" ")
+		}
+		buf.WriteString(TextMarkdown(ctx, b.Text))
+		buf.WriteString("\n>\n")
+	}
+
+	return buf.String()
 }
 
 func TextMarkdown(ctx context.Context, text *larkdocx.Text) string {

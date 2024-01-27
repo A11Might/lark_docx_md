@@ -12,8 +12,9 @@ import (
 type ProcessItem struct {
 	BlockType      *int                // block 类型
 	Normal         *larkdocx.Block     // 普通块
-	QuoteContainer []*larkdocx.Block   // 引用容器
+	Callout        []*larkdocx.Block   // 高亮块
 	Table          [][]*larkdocx.Block // 表格
+	QuoteContainer []*larkdocx.Block   // 引用容器
 }
 
 func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (string, error) {
@@ -56,10 +57,12 @@ func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (
 			BlockType: b.BlockType,
 		}
 		switch *b.BlockType {
-		case QuoteContainer:
+		case Callout:
+			// 放入自己用于解析 emoji
+			processItem.Callout = append(processItem.Callout, b)
 			for _, cBlockId := range b.Children {
 				st[cBlockId] = struct{}{}
-				processItem.QuoteContainer = append(processItem.QuoteContainer, allBlockMap[cBlockId])
+				processItem.Callout = append(processItem.Callout, allBlockMap[cBlockId])
 			}
 
 		case Table:
@@ -71,6 +74,12 @@ func DocxMarkdown(ctx context.Context, client *lark.Client, documentId string) (
 				children = append(children, allBlockMap[allBlockMap[cBlockId].Children[0]])
 			}
 			processItem.Table = lo.Chunk[*larkdocx.Block](children, *b.Table.Property.ColumnSize)
+
+		case QuoteContainer:
+			for _, cBlockId := range b.Children {
+				st[cBlockId] = struct{}{}
+				processItem.QuoteContainer = append(processItem.QuoteContainer, allBlockMap[cBlockId])
+			}
 
 		default:
 			processItem.Normal = b
