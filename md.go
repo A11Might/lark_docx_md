@@ -296,8 +296,57 @@ var emojiMap = map[string]string{
 	"unicorn_face": "🦄",
 }
 
+const (
+	LightRed = iota + 1
+	LightOrange
+	LightYellow
+	LightGreen
+	LightBlue
+	LightPurple
+	LightGray
+	Red
+	Orange
+	Yellow
+	Green
+	Blue
+	Purple
+	Gray
+	SilverGray
+)
+
+var backgroundColorMap = map[int]string{
+	LightRed:    "[!CAUTION]",
+	LightOrange: "[!WARNING]",
+	LightYellow: "[!WARNING]",
+	LightGreen:  "[!TIP]",
+	LightBlue:   "[!NOTE]",
+	LightPurple: "[!IMPORTANT]",
+	LightGray:   "",
+	Red:         "[!CAUTION]",
+	Orange:      "[!WARNING]",
+	Yellow:      "[!WARNING]",
+	Green:       "[!TIP]",
+	Blue:        "[!NOTE]",
+	Purple:      "[!IMPORTANT]",
+	Gray:        "",
+	SilverGray:  "",
+}
+
 func BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
 	buf := new(strings.Builder)
+
+	// 没有颜色转成普通文本
+	if blocks[0].Callout.BackgroundColor == nil {
+		for _, b := range blocks[1:] {
+			buf.WriteString(BlockTextMarkdown(ctx, b))
+			buf.WriteString("\n\n")
+		}
+		return buf.String()
+	}
+
+	buf.WriteString("> ")
+	buf.WriteString(backgroundColorMap[*blocks[0].Callout.BackgroundColor])
+	buf.WriteString("\n>\n")
 
 	emoji := emojiMap[*blocks[0].Callout.EmojiId]
 	if len(blocks) > 1 {
