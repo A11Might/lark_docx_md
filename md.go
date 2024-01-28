@@ -374,7 +374,7 @@ func TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
 		if e.TextRun != nil { // 文字
 			buf.WriteString(TextAddElementStyle(*e.TextRun.Content, e.TextRun.TextElementStyle))
 		} else if e.MentionDoc != nil { // @文档
-			buf.WriteString(fmt.Sprintf("[%s](%s)", TextAddElementStyle(*e.MentionDoc.Title, e.TextRun.TextElementStyle), *e.MentionDoc.Url))
+			buf.WriteString(fmt.Sprintf("[%s](%s)", TextAddElementStyle(*e.MentionDoc.Title, e.MentionDoc.TextElementStyle), *e.MentionDoc.Url))
 		}
 	}
 
@@ -392,7 +392,7 @@ func TextAddElementStyle(text string, style *larkdocx.TextElementStyle) string {
 		text = "*" + text + "*"
 	}
 	if style.Link != nil {
-		text = "[" + text + "]" + "(" + *style.Link.Url + ")"
+		text = "[" + text + "]" + "(" + UnescapeUrl(*style.Link.Url) + ")"
 	}
 	if *style.Strikethrough {
 		text = "~~" + text + "~~"
