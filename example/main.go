@@ -11,8 +11,13 @@ import (
 )
 
 func main() {
-	client := lark.NewClient(os.Getenv("APP_ID"), os.Getenv("APP_SECRET"))
-	md, err := lark_docx_md.DocxMarkdown(context.Background(), client, os.Getenv("DOCUMENT_ID"))
+	processor := lark_docx_md.NewDocxMarkdownProcessor(
+		lark.NewClient(os.Getenv("APP_ID"), os.Getenv("APP_SECRET")),
+		os.Getenv("DOCUMENT_ID"),
+		lark_docx_md.DownloadStatic("static", "static"),
+		lark_docx_md.UseGhCalloutStyle(),
+	)
+	md, err := processor.DocxMarkdown(context.Background())
 	if err != nil {
 		fmt.Println(err.Error())
 		return
