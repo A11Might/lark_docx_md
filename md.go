@@ -9,59 +9,58 @@ import (
 	"path/filepath"
 	"strings"
 
-	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
 )
 
-func DocxBlockMarkdown(ctx context.Context, client *lark.Client, item *ProcessItem) (md string) {
+func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, item *ProcessItem) (md string) {
 	if item == nil {
 		return ""
 	}
 
 	switch *item.BlockType {
 	case Page:
-		md = BlockPageMarkdown(ctx, item.Normal)
+		md = p.BlockPageMarkdown(ctx, item.Normal)
 	case Text:
-		md = BlockTextMarkdown(ctx, item.Normal)
+		md = p.BlockTextMarkdown(ctx, item.Normal)
 	case Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Heading7, Heading8, Heading9:
-		md = BlockHeadingMarkdown(ctx, item.Normal)
+		md = p.BlockHeadingMarkdown(ctx, item.Normal)
 	case Bullet:
-		md = BlockBulletMarkdown(ctx, item.Normal)
+		md = p.BlockBulletMarkdown(ctx, item.Normal)
 	case Ordered:
-		md = BlockOrderedMarkdown(ctx, item.Normal)
+		md = p.BlockOrderedMarkdown(ctx, item.Normal)
 	case Code:
-		md = BlockCodeMarkdown(ctx, item.Normal)
+		md = p.BlockCodeMarkdown(ctx, item.Normal)
 	case Quote:
-		md = BlockQuoteMarkdown(ctx, item.Normal)
+		md = p.BlockQuoteMarkdown(ctx, item.Normal)
 	case Todo:
-		md = BlockTodoMarkdown(ctx, item.Normal)
+		md = p.BlockTodoMarkdown(ctx, item.Normal)
 	case Callout:
-		md = BlockCalloutMarkdown(ctx, item.Callout)
+		md = p.BlockCalloutMarkdown(ctx, item.Callout)
 	case Divider:
-		md = BlockDividerMarkdown(ctx)
+		md = p.BlockDividerMarkdown(ctx)
 	case Image:
-		md = BlockImageMarkdown(ctx, client, item.Normal)
+		md = p.BlockImageMarkdown(ctx, item.Normal)
 	case Table:
-		md = BlockTableMarkdown(ctx, item.Table)
+		md = p.BlockTableMarkdown(ctx, item.Table)
 	case QuoteContainer:
-		md = BlockQuoteContainerMarkdown(ctx, item.QuoteContainer)
+		md = p.BlockQuoteContainerMarkdown(ctx, item.QuoteContainer)
 	default:
-		md = fmt.Sprintf("not support block type:%d", *item.BlockType)
+		md = fmt.Sprintf("<!-- not support block type %d -->", *item.BlockType)
 	}
 
 	return md + "\n\n"
 }
 
-func BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return "# " + TextMarkdown(ctx, block.Page)
+func (p *DocxMarkdownProcessor) BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return "# " + p.TextMarkdown(ctx, block.Page)
 }
 
-func BlockTextMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return TextMarkdown(ctx, block.Text)
+func (p *DocxMarkdownProcessor) BlockTextMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return p.TextMarkdown(ctx, block.Text)
 }
 
-func BlockHeadingMarkdown(ctx context.Context, block *larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockHeadingMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	var heading *larkdocx.Text
 	if block.Heading1 != nil {
 		heading = block.Heading1
@@ -84,47 +83,49 @@ func BlockHeadingMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	}
 
 	// block type: [3, 11] -> heading: [1, 9]
-	return strings.Repeat("#", *block.BlockType-2) + " " + TextMarkdown(ctx, heading)
+	return strings.Repeat("#", *block.BlockType-2) + " " + p.TextMarkdown(ctx, heading)
 }
 
-func BlockBulletMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return "- " + TextMarkdown(ctx, block.Bullet)
+func (p *DocxMarkdownProcessor) BlockBulletMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return "- " + p.TextMarkdown(ctx, block.Bullet)
 }
 
-func BlockOrderedMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return "1. " + TextMarkdown(ctx, block.Ordered)
+func (p *DocxMarkdownProcessor) BlockOrderedMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return "1. " + p.TextMarkdown(ctx, block.Ordered)
 }
 
-func BlockCodeMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return fmt.Sprintf("```%s\n%s\n```", languageMap[*block.Code.Style.Language], TextMarkdown(ctx, block.Code))
+func (p *DocxMarkdownProcessor) BlockCodeMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return fmt.Sprintf("```%s\n%s\n```", languageMap[*block.Code.Style.Language], p.TextMarkdown(ctx, block.Code))
 }
 
-func BlockQuoteMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return "> " + TextMarkdown(ctx, block.Code)
+func (p *DocxMarkdownProcessor) BlockQuoteMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	return "> " + p.TextMarkdown(ctx, block.Code)
 }
 
-func BlockTodoMarkdown(ctx context.Context, block *larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockTodoMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	if *block.Todo.Style.Done {
-		return "[x] " + TextMarkdown(ctx, block.Todo)
+		return "[x] " + p.TextMarkdown(ctx, block.Todo)
 	}
-	return "[]" + TextMarkdown(ctx, block.Todo)
+	return "[]" + p.TextMarkdown(ctx, block.Todo)
 }
 
-func BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
 	buf := new(strings.Builder)
 
 	// 没有颜色转成普通文本
 	if blocks[0].Callout.BackgroundColor == nil {
 		for _, b := range blocks[1:] {
-			buf.WriteString(BlockTextMarkdown(ctx, b))
+			buf.WriteString(p.BlockTextMarkdown(ctx, b))
 			buf.WriteString("\n\n")
 		}
 		return buf.String()
 	}
 
-	buf.WriteString("> ")
-	buf.WriteString(backgroundColorMap[*blocks[0].Callout.BackgroundColor])
-	buf.WriteString("\n>\n")
+	if p.UseGhCallout {
+		buf.WriteString("> ")
+		buf.WriteString(backgroundColorMap[*blocks[0].Callout.BackgroundColor])
+		buf.WriteString("\n>\n")
+	}
 
 	emoji := emojiMap[*blocks[0].Callout.EmojiId]
 	if len(blocks) > 1 {
@@ -138,28 +139,28 @@ func BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string 
 			buf.WriteString(emoji)
 			buf.WriteString(" ")
 		}
-		buf.WriteString(TextMarkdown(ctx, b.Text))
+		buf.WriteString(p.TextMarkdown(ctx, b.Text))
 		buf.WriteString("\n>\n")
 	}
 
 	return buf.String()
 }
 
-func TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
+func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
 	buf := new(strings.Builder)
 
 	for _, e := range text.Elements {
 		if e.TextRun != nil { // 文字
-			buf.WriteString(TextAddElementStyle(*e.TextRun.Content, e.TextRun.TextElementStyle))
+			buf.WriteString(p.TextAddElementStyle(*e.TextRun.Content, e.TextRun.TextElementStyle))
 		} else if e.MentionDoc != nil { // @文档
-			buf.WriteString(fmt.Sprintf("[%s](%s)", TextAddElementStyle(*e.MentionDoc.Title, e.MentionDoc.TextElementStyle), *e.MentionDoc.Url))
+			buf.WriteString(fmt.Sprintf("[%s](%s)", p.TextAddElementStyle(*e.MentionDoc.Title, e.MentionDoc.TextElementStyle), *e.MentionDoc.Url))
 		}
 	}
 
 	return buf.String()
 }
 
-func TextAddElementStyle(text string, style *larkdocx.TextElementStyle) string {
+func (p *DocxMarkdownProcessor) TextAddElementStyle(text string, style *larkdocx.TextElementStyle) string {
 	if *style.Bold {
 		text = "**" + text + "**"
 	}
@@ -182,30 +183,57 @@ func TextAddElementStyle(text string, style *larkdocx.TextElementStyle) string {
 	return text
 }
 
-func BlockDividerMarkdown(ctx context.Context) string {
+func (p *DocxMarkdownProcessor) BlockDividerMarkdown(ctx context.Context) string {
 	return "---"
 }
 
-func BlockImageMarkdown(ctx context.Context, client *lark.Client, block *larkdocx.Block) string {
-	req := larkdrive.NewDownloadMediaReqBuilder().
-		FileToken(*block.Image.Token).
-		Build()
-	resp, err := client.Drive.Media.Download(ctx, req)
-	if err != nil {
-		log.Printf("lark download drive media %s fail: %s", *block.Image.Token, err)
+func (p *DocxMarkdownProcessor) BlockImageMarkdown(ctx context.Context, block *larkdocx.Block) string {
+	if p.StaticAsURL {
+		// 创建请求对象
+		req := larkdrive.NewBatchGetTmpDownloadUrlMediaReqBuilder().
+			FileTokens([]string{*block.Image.Token}).
+			Build()
+		// 发起请求
+		resp, err := p.LarkClient.Drive.V1.Media.BatchGetTmpDownloadUrl(ctx, req)
+		if err != nil {
+			log.Printf("lark get drive media tmp url %s fail: %s", *block.Image.Token, err)
+			return ""
+		}
+		if !resp.Success() {
+			log.Printf("lark get drive media tmp url %s fail: code:%d, msg:%s, requestId:%s", *block.Image.Token, resp.Code, resp.Msg, resp.RequestId())
+			return ""
+		}
+		for _, v := range resp.Data.TmpDownloadUrls {
+			return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", *v.TmpDownloadUrl, *block.Image.Width, *block.Image.Height)
+		}
 		return ""
-	}
-	filename := fmt.Sprintf("%s/%s", "static", *block.Image.Token+".jpg")
-	_ = os.MkdirAll(filepath.Dir(filename), 0o755)
-	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o666)
-	if err != nil {
-		log.Printf("open file %s fail: %s", filename, err)
-		return ""
-	}
-	defer f.Close()
+	} else {
+		req := larkdrive.NewDownloadMediaReqBuilder().
+			FileToken(*block.Image.Token).
+			Build()
+		resp, err := p.LarkClient.Drive.Media.Download(ctx, req)
+		if err != nil {
+			log.Printf("lark download drive media %s fail: %s", *block.Image.Token, err)
+			return ""
+		}
+		if !resp.Success() {
+			log.Printf("lark download drive media %s fail: code:%d, msg:%s, requestId:%s", *block.Image.Token, resp.Code, resp.Msg, resp.RequestId())
+			return ""
+		}
+		name := *block.Image.Token + ".jpg"
+		filename := fmt.Sprintf("%s/%s", p.StaticDir, name)
+		mdname := fmt.Sprintf("%s/%s", p.FilePrefix, name)
+		_ = os.MkdirAll(filepath.Dir(filename), 0o755)
+		f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o666)
+		if err != nil {
+			log.Printf("open file %s fail: %s", filename, err)
+			return ""
+		}
+		defer f.Close()
 
-	_, _ = io.Copy(f, resp.File)
-	return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", filename, *block.Image.Width, *block.Image.Height)
+		_, _ = io.Copy(f, resp.File)
+		return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", mdname, *block.Image.Width, *block.Image.Height)
+	}
 }
 
 const (
@@ -214,7 +242,7 @@ const (
 	AlignRight
 )
 
-func BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
 	buf := new(strings.Builder)
 
 	/**
@@ -239,7 +267,7 @@ func BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
 		default:
 			header.WriteString("-|")
 		}
-		buf.WriteString(TextMarkdown(ctx, col.Text))
+		buf.WriteString(p.TextMarkdown(ctx, col.Text))
 		buf.WriteString("|")
 	}
 	buf.WriteString("\n")
@@ -253,7 +281,7 @@ func BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
 	for _, row := range table {
 		buf.WriteString("|")
 		for _, col := range row {
-			buf.WriteString(TextMarkdown(ctx, col.Text))
+			buf.WriteString(p.TextMarkdown(ctx, col.Text))
 			buf.WriteString("|")
 		}
 		buf.WriteString("\n")
@@ -262,12 +290,12 @@ func BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
 	return buf.String()
 }
 
-func BlockQuoteContainerMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockQuoteContainerMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
 	buf := new(strings.Builder)
 
 	for _, b := range blocks {
 		buf.WriteString("> ")
-		buf.WriteString(TextMarkdown(ctx, b.Text))
+		buf.WriteString(p.TextMarkdown(ctx, b.Text))
 		buf.WriteString("\n>\n")
 	}
 
