@@ -21,8 +21,13 @@ import (
 )
 
 func main() {
-	client := lark.NewClient("appId", "appSecret")
-	md, err := lark_docx_md.DocxMarkdown(context.Background(), client, "documentId")
+	processor := lark_docx_md.NewDocxMarkdownProcessor(
+		lark.NewClient("appId", "appSecret"),
+		"documentId",
+		lark_docx_md.DownloadStatic("static", "static"),
+		lark_docx_md.UseGhCalloutStyle(),
+	)
+	md, err := processor.DocxMarkdown(context.Background())
 	if err != nil {
 		fmt.Println(err)
 		return
@@ -38,6 +43,8 @@ Origin lark docx：[docx](https://r5q4tiv935.feishu.cn/docx/U3hXdQmMAoiNVSxDgPOc
 
 Parse into Markdown：[md](./example.md)
 
-## Related Repo
+## Related repo
 
-[lark_docs_md](https://github.com/chyroc/lark_docs_md)
+[A11Might/lark-docx-readme](https://github.com/A11Might/lark-docx-readme): Use lark docx update github README.md
+
+*Inspired by [chyroc/lark_docs_md](https://github.com/chyroc/lark_docs_md)*
