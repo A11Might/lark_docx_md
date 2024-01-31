@@ -149,38 +149,85 @@ func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks
 func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
 	buf := new(strings.Builder)
 
+	preStyle := larkdocx.NewTextElementStyleBuilder().Bold(false).InlineCode(false).Italic(false).Strikethrough(false).Underline(false).Build()
 	for _, e := range text.Elements {
-		if e.TextRun != nil { // 文字
-			buf.WriteString(p.TextAddElementStyle(*e.TextRun.Content, e.TextRun.TextElementStyle))
-		} else if e.MentionDoc != nil { // @文档
-			buf.WriteString(fmt.Sprintf("[%s](%s)", p.TextAddElementStyle(*e.MentionDoc.Title, e.MentionDoc.TextElementStyle), *e.MentionDoc.Url))
+		// 将链接和@文档都转成普通文字处理
+		textRun := e.TextRun
+		if textRun != nil && textRun.TextElementStyle.Link != nil {
+			textRun = larkdocx.NewTextRunBuilder().
+				Content(fmt.Sprintf("[%s](%s)", *textRun.Content, UnescapeUrl(*textRun.TextElementStyle.Link.Url))).
+				TextElementStyle(textRun.TextElementStyle).
+				Build()
 		}
+		if e.MentionDoc != nil {
+			textRun = larkdocx.NewTextRunBuilder().
+				Content(fmt.Sprintf("[%s](%s)", *e.MentionDoc.Title, UnescapeUrl(*e.MentionDoc.Url))).
+				TextElementStyle(e.MentionDoc.TextElementStyle).
+				Build()
+		}
+		// 处理文本
+		if textRun != nil {
+			// 相邻文本样式相同则统一加样式，不同则开启新样式
+			if *textRun.TextElementStyle.Bold != *preStyle.Bold ||
+				*textRun.TextElementStyle.InlineCode != *preStyle.InlineCode ||
+				*textRun.TextElementStyle.Italic != *preStyle.Italic ||
+				*textRun.TextElementStyle.Strikethrough != *preStyle.Strikethrough ||
+				*textRun.TextElementStyle.Underline != *preStyle.Underline {
+				// 结束上一个样式
+				if *preStyle.Bold {
+					buf.WriteString("**")
+				}
+				if *preStyle.InlineCode {
+					buf.WriteString("`")
+				}
+				if *preStyle.Italic {
+					buf.WriteString("*")
+				}
+				if *preStyle.Strikethrough {
+					buf.WriteString("~~")
+				}
+				if *preStyle.Underline {
+					buf.WriteString("</u>")
+				}
+				// 开启下一个样式
+				if *textRun.TextElementStyle.Bold {
+					buf.WriteString("**")
+				}
+				if *textRun.TextElementStyle.InlineCode {
+					buf.WriteString("`")
+				}
+				if *textRun.TextElementStyle.Italic {
+					buf.WriteString("*")
+				}
+				if *textRun.TextElementStyle.Strikethrough {
+					buf.WriteString("~~")
+				}
+				if *textRun.TextElementStyle.Underline {
+					buf.WriteString("<u>")
+				}
+			}
+			buf.WriteString(*textRun.Content)
+			preStyle = textRun.TextElementStyle
+		}
+	}
+	// 最后一个文本的结束样式
+	if *preStyle.Bold {
+		buf.WriteString("**")
+	}
+	if *preStyle.InlineCode {
+		buf.WriteString("`")
+	}
+	if *preStyle.Italic {
+		buf.WriteString("*")
+	}
+	if *preStyle.Strikethrough {
+		buf.WriteString("~~")
+	}
+	if *preStyle.Underline {
+		buf.WriteString("</u>")
 	}
 
 	return buf.String()
-}
-
-func (p *DocxMarkdownProcessor) TextAddElementStyle(text string, style *larkdocx.TextElementStyle) string {
-	if *style.Bold {
-		text = "**" + text + "**"
-	}
-	if *style.InlineCode {
-		text = "`" + text + "`"
-	}
-	if *style.Italic {
-		text = "*" + text + "*"
-	}
-	if style.Link != nil {
-		text = "[" + text + "]" + "(" + UnescapeUrl(*style.Link.Url) + ")"
-	}
-	if *style.Strikethrough {
-		text = "~~" + text + "~~"
-	}
-	if *style.Underline {
-		text = "<u>" + text + "</u>"
-	}
-
-	return text
 }
 
 func (p *DocxMarkdownProcessor) BlockDividerMarkdown(ctx context.Context) string {
