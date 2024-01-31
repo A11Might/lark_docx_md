@@ -1173,3 +1173,9 @@ var emojiMap = map[string]string{
 	"beach_with_umbrella":           "🏖",
 	"desert_island":                 "🏝",
 }
+
+const (
+	AlignLeft = iota + 1
+	AlignMid
+	AlignRight
+)

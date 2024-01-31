@@ -99,21 +99,26 @@ func (p *DocxMarkdownProcessor) BlockCodeMarkdown(ctx context.Context, block *la
 }
 
 func (p *DocxMarkdownProcessor) BlockQuoteMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return "> " + p.TextMarkdown(ctx, block.Code)
+	return "> " + p.TextMarkdown(ctx, block.Quote)
 }
 
 func (p *DocxMarkdownProcessor) BlockTodoMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	if *block.Todo.Style.Done {
 		return "[x] " + p.TextMarkdown(ctx, block.Todo)
 	}
-	return "[]" + p.TextMarkdown(ctx, block.Todo)
+	return "[] " + p.TextMarkdown(ctx, block.Todo)
 }
 
 func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
 	buf := new(strings.Builder)
 
+	emoji := emojiMap[*blocks[0].Callout.EmojiId]
+
 	// 没有颜色转成普通文本
 	if blocks[0].Callout.BackgroundColor == nil {
+		// 加入高亮块 emoji
+		buf.WriteString(emoji)
+		buf.WriteString(" ")
 		for _, b := range blocks[1:] {
 			buf.WriteString(p.BlockTextMarkdown(ctx, b))
 			buf.WriteString("\n\n")
@@ -127,12 +132,7 @@ func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks
 		buf.WriteString("\n>\n")
 	}
 
-	emoji := emojiMap[*blocks[0].Callout.EmojiId]
-	if len(blocks) > 1 {
-		blocks = blocks[1:]
-	}
-
-	for i, b := range blocks {
+	for i, b := range blocks[1:] {
 		buf.WriteString("> ")
 		// 加入高亮块 emoji
 		if i == 0 {
@@ -283,12 +283,6 @@ func (p *DocxMarkdownProcessor) BlockImageMarkdown(ctx context.Context, block *l
 	}
 }
 
-const (
-	AlignLeft = iota + 1
-	AlignMid
-	AlignRight
-)
-
 func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
 	buf := new(strings.Builder)
 
@@ -299,7 +293,7 @@ func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, table []
 	| col 2 is      | centered      |   $12 |
 	| zebra stripes | are neat      |    $1 |
 	*/
-	// 处理表头
+	// 处理表头，以第一行的样式作为表格样式
 	header := new(strings.Builder)
 	header.WriteString("|")
 	buf.WriteString("|")
