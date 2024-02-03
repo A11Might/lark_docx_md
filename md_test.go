@@ -368,7 +368,7 @@ func TestDocxMarkdownProcessor_BlockHeadingMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"####### 七级标题",
+			"###### 七级标题",
 		},
 		{
 			"heading8",
@@ -399,7 +399,7 @@ func TestDocxMarkdownProcessor_BlockHeadingMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"######## 八级标题",
+			"###### 八级标题",
 		},
 		{
 			"heading9",
@@ -430,7 +430,7 @@ func TestDocxMarkdownProcessor_BlockHeadingMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"######### 九级标题",
+			"###### 九级标题",
 		},
 	}
 	for _, tt := range tests {
@@ -1475,7 +1475,7 @@ func TestDocxMarkdownProcessor_BlockTodoMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"[] 未完成待办事项",
+			"- [ ] 未完成待办事项",
 		},
 		{
 			"todo done",
@@ -1506,7 +1506,7 @@ func TestDocxMarkdownProcessor_BlockTodoMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"[x] 已完成待办事项",
+			"- [x] 已完成待办事项",
 		},
 	}
 	for _, tt := range tests {

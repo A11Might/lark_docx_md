@@ -11,6 +11,7 @@ import (
 
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
+	"github.com/samber/lo"
 )
 
 func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, item *ProcessItem) (md string) {
@@ -82,8 +83,10 @@ func (p *DocxMarkdownProcessor) BlockHeadingMarkdown(ctx context.Context, block 
 		heading = block.Heading9
 	}
 
-	// block type: [3, 11] -> heading: [1, 9]
-	return strings.Repeat("#", *block.BlockType-2) + " " + p.TextMarkdown(ctx, heading)
+	// block type: [3, 11] -> heading: [1, 9] -> markdown [1, 6]
+	cnt := *block.BlockType - 2
+	cnt = lo.Ternary(cnt > 6, 6, cnt)
+	return strings.Repeat("#", cnt) + " " + p.TextMarkdown(ctx, heading)
 }
 
 func (p *DocxMarkdownProcessor) BlockBulletMarkdown(ctx context.Context, block *larkdocx.Block) string {
@@ -104,9 +107,9 @@ func (p *DocxMarkdownProcessor) BlockQuoteMarkdown(ctx context.Context, block *l
 
 func (p *DocxMarkdownProcessor) BlockTodoMarkdown(ctx context.Context, block *larkdocx.Block) string {
 	if *block.Todo.Style.Done {
-		return "[x] " + p.TextMarkdown(ctx, block.Todo)
+		return "- [x] " + p.TextMarkdown(ctx, block.Todo)
 	}
-	return "[] " + p.TextMarkdown(ctx, block.Todo)
+	return "- [ ] " + p.TextMarkdown(ctx, block.Todo)
 }
 
 func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
