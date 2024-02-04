@@ -142,3 +142,31 @@ func (p *DocxMarkdownProcessor) DocxMarkdown(ctx context.Context) (string, error
 	}
 	return buf.String(), nil
 }
+
+type Block struct {
+	*larkdocx.Block
+	ChildrenBlock []*Block
+}
+
+// listTransformToTree 递归填充节点的子节点
+// https://open.feishu.cn/document/ukTMukTMukTM/uUDN04SN0QjL1QDN/document-docx/docx-v1/faq#424e7e9b
+func listTransformToTree(ctx context.Context, rootLarkBlock *larkdocx.Block, larkBlockMap map[string]*larkdocx.Block) *Block {
+	if rootLarkBlock == nil {
+		return nil
+	}
+
+	root := &Block{Block: rootLarkBlock}
+
+	for _, c := range root.Children {
+		lb := larkBlockMap[c]
+		b := &Block{
+			Block: lb,
+		}
+		for _, bc := range b.Children {
+			b.ChildrenBlock = append(b.ChildrenBlock, listTransformToTree(ctx, larkBlockMap[bc], larkBlockMap))
+		}
+		root.ChildrenBlock = append(root.ChildrenBlock, b)
+	}
+
+	return root
+}
