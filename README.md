@@ -23,7 +23,7 @@ import (
 func main() {
 	processor := lark_docx_md.NewDocxMarkdownProcessor(
 		lark.NewClient("appId", "appSecret"),
-		"documentId",
+		"documentType", "documentToken",
 		lark_docx_md.DownloadStatic("static", "static"),
 		lark_docx_md.UseGhCalloutStyle(),
 	)

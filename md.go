@@ -150,6 +150,10 @@ func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks
 }
 
 func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
+	if text == nil {
+		return ""
+	}
+
 	buf := new(strings.Builder)
 
 	preStyle := larkdocx.NewTextElementStyleBuilder().Bold(false).InlineCode(false).Italic(false).Strikethrough(false).Underline(false).Build()

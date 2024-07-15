@@ -1179,3 +1179,8 @@ const (
 	AlignMid
 	AlignRight
 )
+
+const (
+	Docx = "docx"
+	Wiki = "wiki"
+)

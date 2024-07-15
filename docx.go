@@ -6,6 +6,7 @@ import (
 
 	lark "github.com/larksuite/oapi-sdk-go/v3"
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
+	larkwiki "github.com/larksuite/oapi-sdk-go/v3/service/wiki/v2"
 	"github.com/samber/lo"
 )
 
@@ -38,16 +39,19 @@ type DocxMarkdownProcessor struct {
 	*Config
 	LarkClient *lark.Client // lark 客户端
 	DocumentId string       // docx 文档 token
+	Typ        string       // 文档类型，eg. docx, wiki
+	Token      string       // 文档 token
 }
 
-func NewDocxMarkdownProcessor(client *lark.Client, documentId string, opts ...Option) *DocxMarkdownProcessor {
+func NewDocxMarkdownProcessor(client *lark.Client, typ, token string, opts ...Option) *DocxMarkdownProcessor {
 	processor := DocxMarkdownProcessor{
 		Config: &Config{
 			StaticAsURL:  true,  // 默认不下载静态文件
 			UseGhCallout: false, // 默认不使用 github 高亮块样式
 		},
 		LarkClient: client,
-		DocumentId: documentId,
+		Typ:        typ,
+		Token:      token,
 	}
 
 	for _, opt := range opts {
@@ -66,6 +70,19 @@ type ProcessItem struct {
 }
 
 func (p *DocxMarkdownProcessor) DocxMarkdown(ctx context.Context) (string, error) {
+	switch p.Typ {
+	case Docx:
+		p.DocumentId = p.Token
+	case Wiki:
+		req := larkwiki.NewGetNodeSpaceReqBuilder().Token(p.Token).Build()
+		resp, err := p.LarkClient.Wiki.V2.Space.GetNode(ctx, req)
+		if err != nil {
+			return "", err
+		}
+		p.DocumentId = *resp.Data.Node.ObjToken
+	default:
+	}
+
 	req := larkdocx.NewListDocumentBlockReqBuilder().DocumentId(p.DocumentId).Build()
 	iterator, _ := p.LarkClient.Docx.V1.DocumentBlock.ListByIterator(ctx, req)
 
@@ -140,5 +157,8 @@ func (p *DocxMarkdownProcessor) DocxMarkdown(ctx context.Context) (string, error
 	for _, item := range processItems {
 		buf.WriteString(p.DocxBlockMarkdown(ctx, item))
 	}
+	// 广告位
+	buf.WriteString(`***
+_This MARKDOWN was generated with ❤️ by [lark_docx_md](https://github.com/A11Might/lark_docx_md)_`)
 	return buf.String(), nil
 }
