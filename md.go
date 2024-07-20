@@ -14,54 +14,67 @@ import (
 	"github.com/samber/lo"
 )
 
-func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, root *Node) (md string) {
+func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, root *Node) (texts []string) {
 	if root == nil || root.Block == nil {
-		return ""
+		return nil
 	}
 	curBlock := root.Block
 
 	// 先处理子块
 	var subBlockTexts []string
 	for _, childNode := range root.ChildrenNode {
-		subBlockTexts = append(subBlockTexts, p.DocxBlockMarkdown(ctx, childNode))
+		subBlockTexts = append(subBlockTexts, p.DocxBlockMarkdown(ctx, childNode)...)
 	}
 
 	// 再处理父块
+	parentText := ""
 	switch *curBlock.BlockType {
 	case Page:
-		md = p.BlockPageMarkdown(ctx, curBlock)
+		parentText = p.BlockPageMarkdown(ctx, curBlock)
 	case Text:
-		md = p.BlockTextMarkdown(ctx, curBlock)
+		parentText = p.BlockTextMarkdown(ctx, curBlock)
 	case Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Heading7, Heading8, Heading9:
-		md = p.BlockHeadingMarkdown(ctx, curBlock)
+		parentText = p.BlockHeadingMarkdown(ctx, curBlock)
 	case Bullet:
-		md = p.BlockBulletMarkdown(ctx, curBlock)
+		parentText = p.BlockBulletMarkdown(ctx, curBlock)
 	case Ordered:
-		md = p.BlockOrderedMarkdown(ctx, curBlock)
+		parentText = p.BlockOrderedMarkdown(ctx, curBlock)
 	case Code:
-		md = p.BlockCodeMarkdown(ctx, curBlock)
+		parentText = p.BlockCodeMarkdown(ctx, curBlock)
 	case Quote:
-		md = p.BlockQuoteMarkdown(ctx, curBlock)
+		parentText = p.BlockQuoteMarkdown(ctx, curBlock)
 	case Todo:
-		md = p.BlockTodoMarkdown(ctx, curBlock)
+		parentText = p.BlockTodoMarkdown(ctx, curBlock)
 	case Callout:
 		return p.BlockCalloutMarkdown(ctx, curBlock, subBlockTexts)
 	case Divider:
-		md = p.BlockDividerMarkdown(ctx)
+		parentText = p.BlockDividerMarkdown(ctx)
 	case Image:
-		md = p.BlockImageMarkdown(ctx, curBlock)
+		parentText = p.BlockImageMarkdown(ctx, curBlock)
 	case TableCell:
-		return strings.Join(subBlockTexts, "")
+		return subBlockTexts
 	case Table:
 		return p.BlockTableMarkdown(ctx, curBlock, subBlockTexts)
 	case QuoteContainer:
 		return p.BlockQuoteContainerMarkdown(ctx, subBlockTexts)
 	default:
-		md = fmt.Sprintf("<!-- not support block type %d -->", *curBlock.BlockType)
+		parentText = fmt.Sprintf("<!-- not support block type %d -->", *curBlock.BlockType)
 	}
 
 	// 合并父块和子块
-	return md + "\n\n" + strings.Join(subBlockTexts, "")
+	var tmp []string
+	if parentText != "" {
+		tmp = append(tmp, parentText)
+	}
+	for _, text := range subBlockTexts {
+		switch *curBlock.BlockType {
+		case Page, Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Heading7, Heading8, Heading9:
+			tmp = append(tmp, text)
+		default:
+			tmp = append(tmp, "    "+text)
+		}
+	}
+	return tmp
 }
 
 func (p *DocxMarkdownProcessor) BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
@@ -123,36 +136,25 @@ func (p *DocxMarkdownProcessor) BlockTodoMarkdown(ctx context.Context, block *la
 	return "- [ ] " + p.TextMarkdown(ctx, block.Todo)
 }
 
-func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, block *larkdocx.Block, subBlockTexts []string) string {
-	buf := new(strings.Builder)
-
+func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, block *larkdocx.Block, subBlockTexts []string) (texts []string) {
+	// 加入高亮块 emoji
 	emoji := emojiMap[*block.Callout.EmojiId]
-	text := strings.Join(FixTexts(subBlockTexts), "")
+	subBlockTexts[0] = emoji + " " + subBlockTexts[0]
 
 	// 没有颜色转成普通文本
 	if block.Callout.BackgroundColor == nil {
-		// 加入高亮块 emoji
-		buf.WriteString(emoji)
-		buf.WriteString(" ")
-		buf.WriteString(text)
-		buf.WriteString("\n\n")
-		return buf.String()
+		return subBlockTexts
 	}
 
 	if p.UseGhCallout && backgroundColorMap[*block.Callout.BackgroundColor] != "" {
-		buf.WriteString("> ")
-		buf.WriteString(backgroundColorMap[*block.Callout.BackgroundColor])
-		buf.WriteString("\n>\n")
+		texts = append(texts, fmt.Sprintf("> %s\n>", backgroundColorMap[*block.Callout.BackgroundColor]))
 	}
 
-	buf.WriteString("> ")
-	// 加入高亮块 emoji
-	buf.WriteString(emoji)
-	buf.WriteString(" ")
-	buf.WriteString(text)
-	buf.WriteString("\n>\n\n")
+	for _, text := range subBlockTexts {
+		texts = append(texts, "> "+text+"\n>")
+	}
 
-	return buf.String()
+	return FixTexts(texts)
 }
 
 func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
@@ -298,9 +300,7 @@ func (p *DocxMarkdownProcessor) BlockImageMarkdown(ctx context.Context, block *l
 	}
 }
 
-func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, block *larkdocx.Block, subBlockTexts []string) string {
-	buf := new(strings.Builder)
-
+func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, block *larkdocx.Block, subBlockTexts []string) (texts []string) {
 	/**
 	| Tables        | Are           | Cool  |
 	| ------------- |:-------------:| -----:|
@@ -313,29 +313,21 @@ func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, block *l
 	for row := 0; row < rows; row++ {
 		if row == 1 {
 			// TODO 处理表头，以第一行的样式作为表格样式
-			buf.WriteString(strings.ReplaceAll(strings.Repeat("|:-:|", cols), "||", "|"))
-			buf.WriteString("\n")
+			texts = append(texts, fmt.Sprintf("%s", strings.ReplaceAll(strings.Repeat("|:-:|", cols), "||", "|")))
 		}
-		buf.WriteString("|")
+		var tmp []string
 		for col := 0; col < cols; col++ {
-			buf.WriteString(FixText(subBlockTexts[row*cols+col]))
-			buf.WriteString("|")
+			tmp = append(tmp, subBlockTexts[row*cols+col])
 		}
-		buf.WriteString("\n")
+		texts = append(texts, fmt.Sprintf("|%s|", strings.Join(tmp, "|")))
 	}
 
-	return buf.String()
+	return FixTexts(texts)
 }
 
-func (p *DocxMarkdownProcessor) BlockQuoteContainerMarkdown(ctx context.Context, subBlockTexts []string) string {
-	buf := new(strings.Builder)
-
-	subBlockTexts = FixTexts(subBlockTexts)
+func (p *DocxMarkdownProcessor) BlockQuoteContainerMarkdown(ctx context.Context, subBlockTexts []string) (texts []string) {
 	for _, line := range subBlockTexts {
-		buf.WriteString("> ")
-		buf.WriteString(line)
-		buf.WriteString("\n>\n\n")
+		texts = append(texts, fmt.Sprintf("> %s\n>", line))
 	}
-
-	return buf.String()
+	return texts
 }

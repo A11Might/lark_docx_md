@@ -99,3 +99,6 @@ Now a table:
 |col 3 is|right-aligned|$1600|
 |col 2 is|centered|$12|
 |zebra stripes|are neat|$1|
+
+***
+_This MARKDOWN was generated with ❤️ by [lark_docx_md](https://github.com/A11Might/lark_docx_md)_

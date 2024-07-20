@@ -111,11 +111,11 @@ func (p *DocxMarkdownProcessor) DocxMarkdown(ctx context.Context) (string, error
 
 	// 转为 Markdown
 	var buf = new(strings.Builder)
-	buf.WriteString(p.DocxBlockMarkdown(ctx, root))
+	buf.WriteString(strings.Join(p.DocxBlockMarkdown(ctx, root), "\n\n"))
 	// 广告位
-	buf.WriteString(`***
-_This MARKDOWN was generated with ❤️ by [lark_docx_md](https://github.com/A11Might/lark_docx_md)_`)
-	return buf.String(), nil
+	buf.WriteString("\n\n***\n")
+	buf.WriteString("_This MARKDOWN was generated with ❤️ by [lark_docx_md](https://github.com/A11Might/lark_docx_md)_")
+	return strings.ReplaceAll(buf.String(), "0x3f3f3f\n\n", ""), nil
 }
 
 type Node struct {
