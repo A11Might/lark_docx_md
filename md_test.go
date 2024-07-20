@@ -876,7 +876,7 @@ func TestDocxMarkdownProcessor_BlockCodeMarkdown(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   string
+		want   []string
 	}{
 		{
 			"code",
@@ -907,7 +907,7 @@ func TestDocxMarkdownProcessor_BlockCodeMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"```go\nfmt.Println(\"hello world\")\n```",
+			[]string{"```go\n0x3f3f3f", "fmt.Println(\"hello world\")\n0x3f3f3f", "```\n0x3f3f3f\n"},
 		},
 	}
 	for _, tt := range tests {
@@ -917,9 +917,8 @@ func TestDocxMarkdownProcessor_BlockCodeMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockCodeMarkdown(tt.args.ctx, tt.args.block); got != tt.want {
-				t.Errorf("BlockCodeMarkdown() = %v, want %v", got, tt.want)
-			}
+			got := p.BlockCodeMarkdown(tt.args.ctx, tt.args.block)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }

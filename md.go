@@ -40,7 +40,7 @@ func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, root *Nod
 	case Ordered:
 		parentText = p.BlockOrderedMarkdown(ctx, curBlock)
 	case Code:
-		parentText = p.BlockCodeMarkdown(ctx, curBlock)
+		return p.BlockCodeMarkdown(ctx, curBlock)
 	case Quote:
 		parentText = p.BlockQuoteMarkdown(ctx, curBlock)
 	case Todo:
@@ -121,8 +121,11 @@ func (p *DocxMarkdownProcessor) BlockOrderedMarkdown(ctx context.Context, block 
 	return "1. " + p.TextMarkdown(ctx, block.Ordered)
 }
 
-func (p *DocxMarkdownProcessor) BlockCodeMarkdown(ctx context.Context, block *larkdocx.Block) string {
-	return fmt.Sprintf("```%s\n%s\n```", languageMap[*block.Code.Style.Language], p.TextMarkdown(ctx, block.Code))
+func (p *DocxMarkdownProcessor) BlockCodeMarkdown(ctx context.Context, block *larkdocx.Block) (texts []string) {
+	texts = append(texts, fmt.Sprintf("```%s", languageMap[*block.Code.Style.Language]))
+	texts = append(texts, strings.Split(p.TextMarkdown(ctx, block.Code, true), "\n")...)
+	texts = append(texts, "```")
+	return FixTexts(texts)
 }
 
 func (p *DocxMarkdownProcessor) BlockQuoteMarkdown(ctx context.Context, block *larkdocx.Block) string {
@@ -157,9 +160,14 @@ func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, block 
 	return FixTexts(texts)
 }
 
-func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx.Text) string {
+func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx.Text, withoutStyle1 ...bool) string {
 	if text == nil {
 		return ""
+	}
+
+	withoutStyle := false
+	if len(withoutStyle1) != 0 {
+		withoutStyle = withoutStyle1[0]
 	}
 
 	buf := new(strings.Builder)
@@ -183,11 +191,12 @@ func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx
 		// 处理文本
 		if textRun != nil {
 			// 相邻文本样式相同则统一加样式，不同则开启新样式
-			if *textRun.TextElementStyle.Bold != *preStyle.Bold ||
-				*textRun.TextElementStyle.InlineCode != *preStyle.InlineCode ||
-				*textRun.TextElementStyle.Italic != *preStyle.Italic ||
-				*textRun.TextElementStyle.Strikethrough != *preStyle.Strikethrough ||
-				*textRun.TextElementStyle.Underline != *preStyle.Underline {
+			if !withoutStyle &&
+				(*textRun.TextElementStyle.Bold != *preStyle.Bold ||
+					*textRun.TextElementStyle.InlineCode != *preStyle.InlineCode ||
+					*textRun.TextElementStyle.Italic != *preStyle.Italic ||
+					*textRun.TextElementStyle.Strikethrough != *preStyle.Strikethrough ||
+					*textRun.TextElementStyle.Underline != *preStyle.Underline) {
 				// 结束上一个样式
 				if *preStyle.Bold {
 					buf.WriteString("**")
@@ -225,6 +234,10 @@ func (p *DocxMarkdownProcessor) TextMarkdown(ctx context.Context, text *larkdocx
 			preStyle = textRun.TextElementStyle
 		}
 	}
+	if withoutStyle {
+		return buf.String()
+	}
+
 	// 最后一个文本的结束样式
 	if *preStyle.Bold {
 		buf.WriteString("**")
