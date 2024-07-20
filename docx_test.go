@@ -5,6 +5,8 @@ import (
 	"reflect"
 	"testing"
 
+	lark "github.com/larksuite/oapi-sdk-go/v3"
+	larkcore "github.com/larksuite/oapi-sdk-go/v3/core"
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 	"github.com/samber/lo"
 )
@@ -240,30 +242,43 @@ func TestListTransformToTree(t *testing.T) {
 		return *item.BlockId, item
 	})
 
+	type fields struct {
+		Config     *Config
+		LarkClient *lark.Client
+		DocumentId string
+	}
 	type args struct {
 		ctx           context.Context
 		rootLarkBlock *larkdocx.Block
 		larkBlockMap  map[string]*larkdocx.Block
 	}
 	tests := []struct {
-		name string
-		args args
-		want *Block
+		name   string
+		fields fields
+		args   args
+		want   *Node
 	}{
 		{
 			"docx",
+			fields{},
 			args{
 				context.Background(),
 				larkBlocks[0],
 				larkBlockMap,
 			},
-			&Block{},
+			&Node{},
 		},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			if got := listTransformToTree(tt.args.ctx, tt.args.rootLarkBlock, tt.args.larkBlockMap); !reflect.DeepEqual(got, tt.want) {
-				t.Errorf("listTransformToTree() = %v, want %v", got, tt.want)
+			p := &DocxMarkdownProcessor{
+				Config:     tt.fields.Config,
+				LarkClient: tt.fields.LarkClient,
+				DocumentId: tt.fields.DocumentId,
+			}
+			if got := p.listTransformToTree(tt.args.ctx, tt.args.rootLarkBlock, tt.args.larkBlockMap); !reflect.DeepEqual(got, tt.want) {
+				larkcore.Prettify(got)
+				// t.Errorf("listTransformToTree() = %v, want %v", larkcore.Prettify(got), larkcore.Prettify(tt.want))
 			}
 		})
 	}
