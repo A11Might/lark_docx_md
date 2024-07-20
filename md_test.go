@@ -11,6 +11,7 @@ import (
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
 	"github.com/samber/lo"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestDocxMarkdownProcessor_BlockPageMarkdown(t *testing.T) {
@@ -785,7 +786,7 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   string
+		want   []string
 	}{
 		{
 			"callout haven't background color",
@@ -803,7 +804,7 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 					).Build(),
 				[]string{"高亮块"},
 			},
-			"🐶 高亮块\n\n",
+			[]string{"🐶 高亮块"},
 		},
 		{
 			"callout use github callout style",
@@ -824,7 +825,7 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 					).Build(),
 				[]string{"高亮块"},
 			},
-			"> [!NOTE]\n>\n> 🐶 高亮块\n>\n\n",
+			[]string{"> [!NOTE]\n>\n0x3f3f3f", "> 🐶 高亮块\n>\n0x3f3f3f\n"},
 		},
 		{
 			"callout don't use github callout style",
@@ -845,7 +846,7 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 					).Build(),
 				[]string{"高亮块"},
 			},
-			"> 🐶 高亮块\n>\n\n",
+			[]string{"> 🐶 高亮块\n>\n0x3f3f3f\n"},
 		},
 	}
 	for _, tt := range tests {
@@ -855,9 +856,8 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockCalloutMarkdown(tt.args.ctx, tt.args.block, tt.args.subBlockTexts); got != tt.want {
-				t.Errorf("BlockCalloutMarkdown() = %v, want %v", got, tt.want)
-			}
+			got := p.BlockCalloutMarkdown(tt.args.ctx, tt.args.block, tt.args.subBlockTexts)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -876,7 +876,7 @@ func TestDocxMarkdownProcessor_BlockCodeMarkdown(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   string
+		want   []string
 	}{
 		{
 			"code",
@@ -907,7 +907,7 @@ func TestDocxMarkdownProcessor_BlockCodeMarkdown(t *testing.T) {
 						).Build(),
 					).Build(),
 			},
-			"```go\nfmt.Println(\"hello world\")\n```",
+			[]string{"```go\n0x3f3f3f", "fmt.Println(\"hello world\")\n0x3f3f3f", "```\n0x3f3f3f\n"},
 		},
 	}
 	for _, tt := range tests {
@@ -917,9 +917,8 @@ func TestDocxMarkdownProcessor_BlockCodeMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockCodeMarkdown(tt.args.ctx, tt.args.block); got != tt.want {
-				t.Errorf("BlockCodeMarkdown() = %v, want %v", got, tt.want)
-			}
+			got := p.BlockCodeMarkdown(tt.args.ctx, tt.args.block)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -1088,7 +1087,7 @@ func TestDocxMarkdownProcessor_BlockQuoteContainerMarkdown(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   string
+		want   []string
 	}{
 		{
 			"quote container",
@@ -1097,7 +1096,7 @@ func TestDocxMarkdownProcessor_BlockQuoteContainerMarkdown(t *testing.T) {
 				context.Background(),
 				[]string{"引用内容1", "引用内容2"},
 			},
-			"> 引用内容1\n>\n\n> 引用内容2\n>\n\n",
+			[]string{"> 引用内容1\n>", "> 引用内容2\n>"},
 		},
 	}
 	for _, tt := range tests {
@@ -1107,9 +1106,8 @@ func TestDocxMarkdownProcessor_BlockQuoteContainerMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockQuoteContainerMarkdown(tt.args.ctx, tt.args.subBlockTexts); got != tt.want {
-				t.Errorf("BlockQuoteContainerMarkdown() = %v, want %v", got, tt.want)
-			}
+			got := p.BlockQuoteContainerMarkdown(tt.args.ctx, tt.args.subBlockTexts)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
@@ -1191,7 +1189,7 @@ func TestDocxMarkdownProcessor_BlockTableMarkdown(t *testing.T) {
 		name   string
 		fields fields
 		args   args
-		want   string
+		want   []string
 	}{
 		{
 			"table",
@@ -1211,7 +1209,7 @@ func TestDocxMarkdownProcessor_BlockTableMarkdown(t *testing.T) {
 					).Build(),
 				[]string{"表头第一个单元格", "表头第二个单元格", "第三个单元格", "第四个单元格"},
 			},
-			"|表头第一个单元格|表头第二个单元格|\n|:-:|:-:|\n|第三个单元格|第四个单元格|\n",
+			[]string{"|表头第一个单元格|表头第二个单元格|\n0x3f3f3f", "|:-:|:-:|\n0x3f3f3f", "|第三个单元格|第四个单元格|\n0x3f3f3f\n"},
 		},
 	}
 	for _, tt := range tests {
@@ -1221,9 +1219,8 @@ func TestDocxMarkdownProcessor_BlockTableMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockTableMarkdown(tt.args.ctx, tt.args.block, tt.args.subBlockText); got != tt.want {
-				t.Errorf("BlockTableMarkdown() = %v, want %v", got, tt.want)
-			}
+			got := p.BlockTableMarkdown(tt.args.ctx, tt.args.block, tt.args.subBlockText)
+			assert.Equal(t, tt.want, got)
 		})
 	}
 }
