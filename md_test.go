@@ -777,8 +777,9 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 		DocumentId string
 	}
 	type args struct {
-		ctx    context.Context
-		blocks []*larkdocx.Block
+		ctx           context.Context
+		block         *larkdocx.Block
+		subBlockTexts []string
 	}
 	tests := []struct {
 		name   string
@@ -793,38 +794,14 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 			},
 			args{
 				context.Background(),
-				[]*larkdocx.Block{
-					larkdocx.NewBlockBuilder().
-						BlockType(Callout).
-						Callout(
-							larkdocx.NewCalloutBuilder().
-								EmojiId("dog").
-								Build(),
-						).Build(),
-					larkdocx.NewBlockBuilder().
-						BlockType(Text).
-						Text(
-							larkdocx.NewTextBuilder().Elements(
-								[]*larkdocx.TextElement{
-									larkdocx.NewTextElementBuilder().TextRun(
-										larkdocx.NewTextRunBuilder().Content(
-											"高亮块",
-										).TextElementStyle(
-											larkdocx.NewTextElementStyleBuilder().
-												Bold(false).
-												InlineCode(false).
-												Italic(false).
-												Strikethrough(false).
-												Underline(false).
-												Build(),
-										).Build(),
-									).Build(),
-								},
-							).Style(
-								larkdocx.NewTextStyleBuilder().Language(Go).Build(),
-							).Build(),
-						).Build(),
-				},
+				larkdocx.NewBlockBuilder().
+					BlockType(Callout).
+					Callout(
+						larkdocx.NewCalloutBuilder().
+							EmojiId("dog").
+							Build(),
+					).Build(),
+				[]string{"高亮块"},
 			},
 			"🐶 高亮块\n\n",
 		},
@@ -837,41 +814,17 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 			},
 			args{
 				context.Background(),
-				[]*larkdocx.Block{
-					larkdocx.NewBlockBuilder().
-						BlockType(Callout).
-						Callout(
-							larkdocx.NewCalloutBuilder().
-								BackgroundColor(Blue).
-								EmojiId("dog").
-								Build(),
-						).Build(),
-					larkdocx.NewBlockBuilder().
-						BlockType(Text).
-						Text(
-							larkdocx.NewTextBuilder().Elements(
-								[]*larkdocx.TextElement{
-									larkdocx.NewTextElementBuilder().TextRun(
-										larkdocx.NewTextRunBuilder().Content(
-											"高亮块",
-										).TextElementStyle(
-											larkdocx.NewTextElementStyleBuilder().
-												Bold(false).
-												InlineCode(false).
-												Italic(false).
-												Strikethrough(false).
-												Underline(false).
-												Build(),
-										).Build(),
-									).Build(),
-								},
-							).Style(
-								larkdocx.NewTextStyleBuilder().Language(Go).Build(),
-							).Build(),
-						).Build(),
-				},
+				larkdocx.NewBlockBuilder().
+					BlockType(Callout).
+					Callout(
+						larkdocx.NewCalloutBuilder().
+							BackgroundColor(Blue).
+							EmojiId("dog").
+							Build(),
+					).Build(),
+				[]string{"高亮块"},
 			},
-			"> [!NOTE]\n>\n> 🐶 高亮块\n>\n",
+			"> [!NOTE]\n>\n> 🐶 高亮块\n>\n\n",
 		},
 		{
 			"callout don't use github callout style",
@@ -882,41 +835,17 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 			},
 			args{
 				context.Background(),
-				[]*larkdocx.Block{
-					larkdocx.NewBlockBuilder().
-						BlockType(Callout).
-						Callout(
-							larkdocx.NewCalloutBuilder().
-								BackgroundColor(Blue).
-								EmojiId("dog").
-								Build(),
-						).Build(),
-					larkdocx.NewBlockBuilder().
-						BlockType(Text).
-						Text(
-							larkdocx.NewTextBuilder().Elements(
-								[]*larkdocx.TextElement{
-									larkdocx.NewTextElementBuilder().TextRun(
-										larkdocx.NewTextRunBuilder().Content(
-											"高亮块",
-										).TextElementStyle(
-											larkdocx.NewTextElementStyleBuilder().
-												Bold(false).
-												InlineCode(false).
-												Italic(false).
-												Strikethrough(false).
-												Underline(false).
-												Build(),
-										).Build(),
-									).Build(),
-								},
-							).Style(
-								larkdocx.NewTextStyleBuilder().Language(Go).Build(),
-							).Build(),
-						).Build(),
-				},
+				larkdocx.NewBlockBuilder().
+					BlockType(Callout).
+					Callout(
+						larkdocx.NewCalloutBuilder().
+							BackgroundColor(Blue).
+							EmojiId("dog").
+							Build(),
+					).Build(),
+				[]string{"高亮块"},
 			},
-			"> 🐶 高亮块\n>\n",
+			"> 🐶 高亮块\n>\n\n",
 		},
 	}
 	for _, tt := range tests {
@@ -926,7 +855,7 @@ func TestDocxMarkdownProcessor_BlockCalloutMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockCalloutMarkdown(tt.args.ctx, tt.args.blocks); got != tt.want {
+			if got := p.BlockCalloutMarkdown(tt.args.ctx, tt.args.block, tt.args.subBlockTexts); got != tt.want {
 				t.Errorf("BlockCalloutMarkdown() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1071,13 +1000,14 @@ func TestDocxMarkdownProcessor_BlockImageMarkdown(t *testing.T) {
 							Build(),
 					).Build(),
 			},
-			"<img src=\"image-token-url\" width=\"100\" height=\"100\"/>",
+			"![image-token](image-token-url)",
 			func() {
 				mockey.Mock(mockey.GetMethod(client.Drive.V1.Media, "BatchGetTmpDownloadUrl")).Return(
 					&larkdrive.BatchGetTmpDownloadUrlMediaResp{
 						Data: &larkdrive.BatchGetTmpDownloadUrlMediaRespData{
 							TmpDownloadUrls: []*larkdrive.TmpDownloadUrl{
 								{
+									FileToken:      lo.ToPtr("image-token"),
 									TmpDownloadUrl: lo.ToPtr("image-token-url"),
 								},
 							},
@@ -1109,7 +1039,7 @@ func TestDocxMarkdownProcessor_BlockImageMarkdown(t *testing.T) {
 							Build(),
 					).Build(),
 			},
-			"<img src=\"static/image-token.jpg\" width=\"100\" height=\"100\"/>",
+			"![image-token.jpg](static/image-token.jpg)",
 			func() {
 				mockey.Mock(mockey.GetMethod(client.Drive.V1.Media, "Download")).Return(
 					&larkdrive.DownloadMediaResp{},
@@ -1151,8 +1081,8 @@ func TestDocxMarkdownProcessor_BlockQuoteContainerMarkdown(t *testing.T) {
 		DocumentId string
 	}
 	type args struct {
-		ctx    context.Context
-		blocks []*larkdocx.Block
+		ctx           context.Context
+		subBlockTexts []string
 	}
 	tests := []struct {
 		name   string
@@ -1165,56 +1095,9 @@ func TestDocxMarkdownProcessor_BlockQuoteContainerMarkdown(t *testing.T) {
 			fields{},
 			args{
 				context.Background(),
-				[]*larkdocx.Block{
-					larkdocx.NewBlockBuilder().
-						BlockType(Text).
-						Text(
-							larkdocx.NewTextBuilder().Elements(
-								[]*larkdocx.TextElement{
-									larkdocx.NewTextElementBuilder().TextRun(
-										larkdocx.NewTextRunBuilder().Content(
-											"引用内容1",
-										).TextElementStyle(
-											larkdocx.NewTextElementStyleBuilder().
-												Bold(false).
-												InlineCode(false).
-												Italic(false).
-												Strikethrough(false).
-												Underline(false).
-												Build(),
-										).Build(),
-									).Build(),
-								},
-							).Style(
-								larkdocx.NewTextStyleBuilder().Align(AlignLeft).Build(),
-							).Build(),
-						).Build(),
-					larkdocx.NewBlockBuilder().
-						BlockType(Text).
-						Text(
-							larkdocx.NewTextBuilder().Elements(
-								[]*larkdocx.TextElement{
-									larkdocx.NewTextElementBuilder().TextRun(
-										larkdocx.NewTextRunBuilder().Content(
-											"引用内容2",
-										).TextElementStyle(
-											larkdocx.NewTextElementStyleBuilder().
-												Bold(false).
-												InlineCode(false).
-												Italic(false).
-												Strikethrough(false).
-												Underline(false).
-												Build(),
-										).Build(),
-									).Build(),
-								},
-							).Style(
-								larkdocx.NewTextStyleBuilder().Align(AlignLeft).Build(),
-							).Build(),
-						).Build(),
-				},
+				[]string{"引用内容1", "引用内容2"},
 			},
-			"> 引用内容1\n>\n> 引用内容2\n>\n",
+			"> 引用内容1\n>\n\n> 引用内容2\n>\n\n",
 		},
 	}
 	for _, tt := range tests {
@@ -1224,7 +1107,7 @@ func TestDocxMarkdownProcessor_BlockQuoteContainerMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockQuoteContainerMarkdown(tt.args.ctx, tt.args.blocks); got != tt.want {
+			if got := p.BlockQuoteContainerMarkdown(tt.args.ctx, tt.args.subBlockTexts); got != tt.want {
 				t.Errorf("BlockQuoteContainerMarkdown() = %v, want %v", got, tt.want)
 			}
 		})
@@ -1300,8 +1183,9 @@ func TestDocxMarkdownProcessor_BlockTableMarkdown(t *testing.T) {
 		DocumentId string
 	}
 	type args struct {
-		ctx   context.Context
-		table [][]*larkdocx.Block
+		ctx          context.Context
+		block        *larkdocx.Block
+		subBlockText []string
 	}
 	tests := []struct {
 		name   string
@@ -1314,106 +1198,20 @@ func TestDocxMarkdownProcessor_BlockTableMarkdown(t *testing.T) {
 			fields{},
 			args{
 				context.Background(),
-				[][]*larkdocx.Block{
-					{
-						larkdocx.NewBlockBuilder().
-							BlockType(Text).
-							Text(
-								larkdocx.NewTextBuilder().Elements(
-									[]*larkdocx.TextElement{
-										larkdocx.NewTextElementBuilder().TextRun(
-											larkdocx.NewTextRunBuilder().Content(
-												"表头第一个单元格",
-											).TextElementStyle(
-												larkdocx.NewTextElementStyleBuilder().
-													Bold(false).
-													InlineCode(false).
-													Italic(false).
-													Strikethrough(false).
-													Underline(false).
-													Build(),
-											).Build(),
-										).Build(),
-									},
-								).Style(
-									larkdocx.NewTextStyleBuilder().Align(AlignLeft).Build(),
-								).Build(),
+				larkdocx.NewBlockBuilder().
+					BlockType(Table).
+					Table(
+						larkdocx.NewTableBuilder().
+							Property(
+								larkdocx.NewTablePropertyBuilder().
+									RowSize(2).
+									ColumnSize(2).
+									Build(),
 							).Build(),
-						larkdocx.NewBlockBuilder().
-							BlockType(Text).
-							Text(
-								larkdocx.NewTextBuilder().Elements(
-									[]*larkdocx.TextElement{
-										larkdocx.NewTextElementBuilder().TextRun(
-											larkdocx.NewTextRunBuilder().Content(
-												"表头第二个单元格",
-											).TextElementStyle(
-												larkdocx.NewTextElementStyleBuilder().
-													Bold(false).
-													InlineCode(false).
-													Italic(false).
-													Strikethrough(false).
-													Underline(false).
-													Build(),
-											).Build(),
-										).Build(),
-									},
-								).Style(
-									larkdocx.NewTextStyleBuilder().Align(AlignMid).Build(),
-								).Build(),
-							).Build(),
-					},
-					{
-						larkdocx.NewBlockBuilder().
-							BlockType(Text).
-							Text(
-								larkdocx.NewTextBuilder().Elements(
-									[]*larkdocx.TextElement{
-										larkdocx.NewTextElementBuilder().TextRun(
-											larkdocx.NewTextRunBuilder().Content(
-												"第三个单元格",
-											).TextElementStyle(
-												larkdocx.NewTextElementStyleBuilder().
-													Bold(false).
-													InlineCode(false).
-													Italic(false).
-													Strikethrough(false).
-													Underline(false).
-													Build(),
-											).Build(),
-										).Build(),
-									},
-								).Style(
-									larkdocx.NewTextStyleBuilder().Align(AlignLeft).Build(),
-								).Build(),
-							).Build(),
-						larkdocx.NewBlockBuilder().
-							BlockType(Text).
-							Text(
-								larkdocx.NewTextBuilder().Elements(
-									[]*larkdocx.TextElement{
-										larkdocx.NewTextElementBuilder().TextRun(
-											larkdocx.NewTextRunBuilder().Content(
-												"第四个单元格",
-											).TextElementStyle(
-												larkdocx.NewTextElementStyleBuilder().
-													Bold(false).
-													InlineCode(false).
-													Italic(false).
-													Strikethrough(false).
-													Underline(false).
-													Build(),
-											).Build(),
-										).Build(),
-									},
-								).Style(
-									larkdocx.NewTextStyleBuilder().Align(AlignLeft).Build(),
-								).Build(),
-							).Build(),
-					},
-				},
+					).Build(),
+				[]string{"表头第一个单元格", "表头第二个单元格", "第三个单元格", "第四个单元格"},
 			},
-			"|表头第一个单元格|表头第二个单元格|\n|-|:-:|\n|第三个单元格|第四个单元格|\n",
+			"|表头第一个单元格|表头第二个单元格|\n|:-:|:-:|\n|第三个单元格|第四个单元格|\n",
 		},
 	}
 	for _, tt := range tests {
@@ -1423,7 +1221,7 @@ func TestDocxMarkdownProcessor_BlockTableMarkdown(t *testing.T) {
 				LarkClient: tt.fields.LarkClient,
 				DocumentId: tt.fields.DocumentId,
 			}
-			if got := p.BlockTableMarkdown(tt.args.ctx, tt.args.table); got != tt.want {
+			if got := p.BlockTableMarkdown(tt.args.ctx, tt.args.block, tt.args.subBlockText); got != tt.want {
 				t.Errorf("BlockTableMarkdown() = %v, want %v", got, tt.want)
 			}
 		})

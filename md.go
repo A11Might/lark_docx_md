@@ -14,43 +14,54 @@ import (
 	"github.com/samber/lo"
 )
 
-func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, item *ProcessItem) (md string) {
-	if item == nil {
+func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, root *Node) (md string) {
+	if root == nil || root.Block == nil {
 		return ""
 	}
+	curBlock := root.Block
 
-	switch *item.BlockType {
+	// 先处理子块
+	var subBlockTexts []string
+	for _, childNode := range root.ChildrenNode {
+		subBlockTexts = append(subBlockTexts, p.DocxBlockMarkdown(ctx, childNode))
+	}
+
+	// 再处理父块
+	switch *curBlock.BlockType {
 	case Page:
-		md = p.BlockPageMarkdown(ctx, item.Normal)
+		md = p.BlockPageMarkdown(ctx, curBlock)
 	case Text:
-		md = p.BlockTextMarkdown(ctx, item.Normal)
+		md = p.BlockTextMarkdown(ctx, curBlock)
 	case Heading1, Heading2, Heading3, Heading4, Heading5, Heading6, Heading7, Heading8, Heading9:
-		md = p.BlockHeadingMarkdown(ctx, item.Normal)
+		md = p.BlockHeadingMarkdown(ctx, curBlock)
 	case Bullet:
-		md = p.BlockBulletMarkdown(ctx, item.Normal)
+		md = p.BlockBulletMarkdown(ctx, curBlock)
 	case Ordered:
-		md = p.BlockOrderedMarkdown(ctx, item.Normal)
+		md = p.BlockOrderedMarkdown(ctx, curBlock)
 	case Code:
-		md = p.BlockCodeMarkdown(ctx, item.Normal)
+		md = p.BlockCodeMarkdown(ctx, curBlock)
 	case Quote:
-		md = p.BlockQuoteMarkdown(ctx, item.Normal)
+		md = p.BlockQuoteMarkdown(ctx, curBlock)
 	case Todo:
-		md = p.BlockTodoMarkdown(ctx, item.Normal)
+		md = p.BlockTodoMarkdown(ctx, curBlock)
 	case Callout:
-		md = p.BlockCalloutMarkdown(ctx, item.Callout)
+		return p.BlockCalloutMarkdown(ctx, curBlock, subBlockTexts)
 	case Divider:
 		md = p.BlockDividerMarkdown(ctx)
 	case Image:
-		md = p.BlockImageMarkdown(ctx, item.Normal)
+		md = p.BlockImageMarkdown(ctx, curBlock)
+	case TableCell:
+		return strings.Join(subBlockTexts, "")
 	case Table:
-		md = p.BlockTableMarkdown(ctx, item.Table)
+		return p.BlockTableMarkdown(ctx, curBlock, subBlockTexts)
 	case QuoteContainer:
-		md = p.BlockQuoteContainerMarkdown(ctx, item.QuoteContainer)
+		return p.BlockQuoteContainerMarkdown(ctx, subBlockTexts)
 	default:
-		md = fmt.Sprintf("<!-- not support block type %d -->", *item.BlockType)
+		md = fmt.Sprintf("<!-- not support block type %d -->", *curBlock.BlockType)
 	}
 
-	return md + "\n\n"
+	// 合并父块和子块
+	return md + "\n\n" + strings.Join(subBlockTexts, "")
 }
 
 func (p *DocxMarkdownProcessor) BlockPageMarkdown(ctx context.Context, block *larkdocx.Block) string {
@@ -112,39 +123,34 @@ func (p *DocxMarkdownProcessor) BlockTodoMarkdown(ctx context.Context, block *la
 	return "- [ ] " + p.TextMarkdown(ctx, block.Todo)
 }
 
-func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockCalloutMarkdown(ctx context.Context, block *larkdocx.Block, subBlockTexts []string) string {
 	buf := new(strings.Builder)
 
-	emoji := emojiMap[*blocks[0].Callout.EmojiId]
+	emoji := emojiMap[*block.Callout.EmojiId]
+	text := strings.Join(FixTexts(subBlockTexts), "")
 
 	// 没有颜色转成普通文本
-	if blocks[0].Callout.BackgroundColor == nil {
+	if block.Callout.BackgroundColor == nil {
 		// 加入高亮块 emoji
 		buf.WriteString(emoji)
 		buf.WriteString(" ")
-		for _, b := range blocks[1:] {
-			buf.WriteString(p.BlockTextMarkdown(ctx, b))
-			buf.WriteString("\n\n")
-		}
+		buf.WriteString(text)
+		buf.WriteString("\n\n")
 		return buf.String()
 	}
 
-	if p.UseGhCallout {
+	if p.UseGhCallout && backgroundColorMap[*block.Callout.BackgroundColor] != "" {
 		buf.WriteString("> ")
-		buf.WriteString(backgroundColorMap[*blocks[0].Callout.BackgroundColor])
+		buf.WriteString(backgroundColorMap[*block.Callout.BackgroundColor])
 		buf.WriteString("\n>\n")
 	}
 
-	for i, b := range blocks[1:] {
-		buf.WriteString("> ")
-		// 加入高亮块 emoji
-		if i == 0 {
-			buf.WriteString(emoji)
-			buf.WriteString(" ")
-		}
-		buf.WriteString(p.TextMarkdown(ctx, b.Text))
-		buf.WriteString("\n>\n")
-	}
+	buf.WriteString("> ")
+	// 加入高亮块 emoji
+	buf.WriteString(emoji)
+	buf.WriteString(" ")
+	buf.WriteString(text)
+	buf.WriteString("\n>\n\n")
 
 	return buf.String()
 }
@@ -258,7 +264,8 @@ func (p *DocxMarkdownProcessor) BlockImageMarkdown(ctx context.Context, block *l
 			return ""
 		}
 		for _, v := range resp.Data.TmpDownloadUrls {
-			return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", *v.TmpDownloadUrl, *block.Image.Width, *block.Image.Height)
+			// return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", *v.TmpDownloadUrl, *block.Image.Width, *block.Image.Height)
+			return fmt.Sprintf("![%s](%s)", *v.FileToken, *v.TmpDownloadUrl)
 		}
 		return ""
 	} else {
@@ -286,11 +293,12 @@ func (p *DocxMarkdownProcessor) BlockImageMarkdown(ctx context.Context, block *l
 		defer f.Close()
 
 		_, _ = io.Copy(f, resp.File)
-		return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", mdname, *block.Image.Width, *block.Image.Height)
+		// return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", mdname, *block.Image.Width, *block.Image.Height)
+		return fmt.Sprintf("![%s](%s)", name, mdname)
 	}
 }
 
-func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, table [][]*larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, block *larkdocx.Block, subBlockTexts []string) string {
 	buf := new(strings.Builder)
 
 	/**
@@ -300,36 +308,17 @@ func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, table []
 	| col 2 is      | centered      |   $12 |
 	| zebra stripes | are neat      |    $1 |
 	*/
-	// 处理表头，以第一行的样式作为表格样式
-	header := new(strings.Builder)
-	header.WriteString("|")
-	buf.WriteString("|")
-	for _, col := range table[0] {
-		switch *col.Text.Style.Align {
-		case AlignLeft:
-			header.WriteString("-|")
-		case AlignMid:
-			header.WriteString(":-:|")
-		case AlignRight:
-			header.WriteString("-:|")
-		default:
-			header.WriteString("-|")
+	rows := lo.FromPtr(block.Table.Property.RowSize)
+	cols := lo.FromPtr(block.Table.Property.ColumnSize)
+	for row := 0; row < rows; row++ {
+		if row == 1 {
+			// TODO 处理表头，以第一行的样式作为表格样式
+			buf.WriteString(strings.ReplaceAll(strings.Repeat("|:-:|", cols), "||", "|"))
+			buf.WriteString("\n")
 		}
-		buf.WriteString(p.TextMarkdown(ctx, col.Text))
 		buf.WriteString("|")
-	}
-	buf.WriteString("\n")
-	buf.WriteString(header.String())
-	buf.WriteString("\n")
-
-	if len(table) > 1 {
-		// 跳过表头
-		table = table[1:]
-	}
-	for _, row := range table {
-		buf.WriteString("|")
-		for _, col := range row {
-			buf.WriteString(p.TextMarkdown(ctx, col.Text))
+		for col := 0; col < cols; col++ {
+			buf.WriteString(FixText(subBlockTexts[row*cols+col]))
 			buf.WriteString("|")
 		}
 		buf.WriteString("\n")
@@ -338,13 +327,14 @@ func (p *DocxMarkdownProcessor) BlockTableMarkdown(ctx context.Context, table []
 	return buf.String()
 }
 
-func (p *DocxMarkdownProcessor) BlockQuoteContainerMarkdown(ctx context.Context, blocks []*larkdocx.Block) string {
+func (p *DocxMarkdownProcessor) BlockQuoteContainerMarkdown(ctx context.Context, subBlockTexts []string) string {
 	buf := new(strings.Builder)
 
-	for _, b := range blocks {
+	subBlockTexts = FixTexts(subBlockTexts)
+	for _, line := range subBlockTexts {
 		buf.WriteString("> ")
-		buf.WriteString(p.TextMarkdown(ctx, b.Text))
-		buf.WriteString("\n>\n")
+		buf.WriteString(line)
+		buf.WriteString("\n>\n\n")
 	}
 
 	return buf.String()

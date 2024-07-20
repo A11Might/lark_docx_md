@@ -60,7 +60,6 @@ The following is a blockquote:
 > Suspendisse tempus dolor nec risus sodales posuere. Proin dui dui, mollis a consectetur molestie, lobortis vitae tellus.
 >
 
-
 ## TODO
 
 - [ ] Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
@@ -71,19 +70,13 @@ The following is a blockquote:
 
 🎉 Duis aute irure dolor in reprehenderit in voluptate velit esse cillum dolore eu fugiat nulla pariatur.
 
-
-
-> 
->
 > 🎉 Excepteur sint occaecat cupidatat non proident, sunt in culpa qui officia deserunt mollit anim id est laborum.
 >
-
 
 > [!NOTE]
 >
 > 🎉 Praesent nulla quam, ullamcorper in sollicitudin ac
 >
-
 
 ## Thematic breaks
 
@@ -93,7 +86,7 @@ Mauris viverra dictum ultricies. Vestibulum quis ipsum euismod, facilisis metus 
 
 ## Images
 
-<img src="static/MFg0bUg4QoAimxxBofyc1Cw9nIb.jpg" width="128" height="128"/>
+![TJ17b09Jsop12FxZItdc1mman8I.jpg](static/MFg0bUg4QoAimxxBofyc1Cw9nIb.jpg)
 
 Logo of *no style, please!* theme
 
@@ -102,9 +95,7 @@ Logo of *no style, please!* theme
 Now a table:
 
 |Tables|Are|Cool|
-|-|:-:|-:|
+|:-:|:-:|:-:|
 |col 3 is|right-aligned|$1600|
 |col 2 is|centered|$12|
 |zebra stripes|are neat|$1|
-
-
