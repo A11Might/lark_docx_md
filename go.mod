@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/bytedance/mockey v1.2.10
-	github.com/larksuite/oapi-sdk-go/v3 v3.1.2
+	github.com/larksuite/oapi-sdk-go/v3 v3.3.2
 	github.com/samber/lo v1.39.0
 	github.com/stretchr/testify v1.9.0
 )
