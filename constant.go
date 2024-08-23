@@ -23,6 +23,7 @@ const (
 	Table          = 31
 	TableCell      = 32
 	QuoteContainer = 34
+	Board          = 43
 )
 
 const (

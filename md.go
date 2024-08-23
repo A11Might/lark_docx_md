@@ -9,6 +9,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	larkboard "github.com/larksuite/oapi-sdk-go/v3/service/board/v1"
 	larkdocx "github.com/larksuite/oapi-sdk-go/v3/service/docx/v1"
 	larkdrive "github.com/larksuite/oapi-sdk-go/v3/service/drive/v1"
 	"github.com/samber/lo"
@@ -57,6 +58,8 @@ func (p *DocxMarkdownProcessor) DocxBlockMarkdown(ctx context.Context, root *Nod
 		return p.BlockTableMarkdown(ctx, curBlock, subBlockTexts)
 	case QuoteContainer:
 		return p.BlockQuoteContainerMarkdown(ctx, subBlockTexts)
+	case Board:
+		parentText = p.BlockBoardMarkdown(ctx, curBlock)
 	default:
 		parentText = fmt.Sprintf("<!-- not support block type %d -->", *curBlock.BlockType)
 	}
@@ -296,20 +299,9 @@ func (p *DocxMarkdownProcessor) BlockImageMarkdown(ctx context.Context, block *l
 			log.Printf("lark download drive media %s fail: code:%d, msg:%s, requestId:%s", *block.Image.Token, resp.Code, resp.Msg, resp.RequestId())
 			return ""
 		}
-		name := *block.Image.Token + ".jpg"
-		filename := fmt.Sprintf("%s/%s", p.StaticDir, name)
-		mdname := fmt.Sprintf("%s/%s", p.FilePrefix, name)
-		_ = os.MkdirAll(filepath.Dir(filename), 0o755)
-		f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o666)
-		if err != nil {
-			log.Printf("open file %s fail: %s", filename, err)
-			return ""
-		}
-		defer f.Close()
 
-		_, _ = io.Copy(f, resp.File)
-		// return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", mdname, *block.Image.Width, *block.Image.Height)
-		return fmt.Sprintf("![%s](%s)", name, mdname)
+		name := *block.Image.Token + ".jpg"
+		return p.downloadImage(name, resp.File)
 	}
 }
 
@@ -343,4 +335,38 @@ func (p *DocxMarkdownProcessor) BlockQuoteContainerMarkdown(ctx context.Context,
 		texts = append(texts, fmt.Sprintf("> %s\n>", line))
 	}
 	return texts
+}
+
+func (p *DocxMarkdownProcessor) BlockBoardMarkdown(ctx context.Context, block *larkdocx.Block) (texts string) {
+	req := larkboard.NewDownloadAsImageWhiteboardReqBuilder().
+		WhiteboardId(*block.Board.Token).
+		Build()
+	resp, err := p.LarkClient.Board.V1.Whiteboard.DownloadAsImage(ctx, req)
+	if err != nil {
+		log.Printf("lark download board %s as image fail: %s", *block.Board.Token, err)
+		return ""
+	}
+	if !resp.Success() {
+		log.Printf("lark download board %s as image fail: code:%d, msg:%s, requestId:%s", *block.Board.Token, resp.Code, resp.Msg, resp.RequestId())
+		return ""
+	}
+
+	name := *block.Board.Token + ".png"
+	return p.downloadImage(name, resp.File)
+}
+
+func (p *DocxMarkdownProcessor) downloadImage(name string, file io.Reader) string {
+	filename := fmt.Sprintf("%s/%s", p.StaticDir, name)
+	mdname := fmt.Sprintf("%s/%s", p.FilePrefix, name)
+	_ = os.MkdirAll(filepath.Dir(filename), 0o755)
+	f, err := os.OpenFile(filename, os.O_CREATE|os.O_WRONLY, 0o666)
+	if err != nil {
+		log.Printf("open file %s fail: %s", filename, err)
+		return ""
+	}
+	defer f.Close()
+
+	_, _ = io.Copy(f, file)
+	// return fmt.Sprintf("<img src=%q width=\"%d\" height=\"%d\"/>", mdname, *block.Image.Width, *block.Image.Height)
+	return fmt.Sprintf("![%s](%s)", name, mdname)
 }
